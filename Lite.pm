@@ -35,6 +35,9 @@ sub csvPrint {
  } elsif ( (ref($to) eq 'GLOB') and (ref($from) eq 'ARRAY') ) {
   $fh=$to;
   $to=[];
+ } elsif ($to and ! ref($to) and (ref($from) eq 'ARRAY') ) {
+  open($fh,'>',$to);
+  $to=[];
  } elsif ( !((ref($to) eq 'ARRAY') and (ref($from) eq 'ARRAY')) ) {
   return 0;
  } 
