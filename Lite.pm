@@ -23,7 +23,8 @@ sub csvLine {
 }                  
 
 sub csvPrint {
- my ($to,$from)=@_;
+ my $pars=ref($_[0]) eq 'HASH'?shift:{};
+ my ($to,$from)=(shift,shift);
  my ($WriteTo,$fh)=('FILE',*STDOUT);
  if ((ref($to) eq 'ARRAY') and ! $from) {
   $from=$to;
@@ -40,8 +41,24 @@ sub csvPrint {
   $to=[];
  } elsif ( !((ref($to) eq 'ARRAY') and (ref($from) eq 'ARRAY')) ) {
   return 0;
- } 
- @{$to}=map { csvLine(',','"',$_) } @$from;
+ }
+ 
+ if (ref($from->[0]) eq 'HASH' or ref($from->[1]) eq 'HASH') {
+  my @keySeq;
+  if (ref($pars->{'fields'}) eq 'ARRAY') {
+   @keySeq=@{$pars->{'fields'}};
+  } elsif ( ref($from->[0]) eq 'HASH' ) {
+   @keySeq=sort keys $from->[0];
+  } elsif (ref($from->[0]) eq 'ARRAY' and ref($from->[1]) eq 'HASH') {
+   @keySeq=@{$from->[0]};
+  } else {
+   return 0;
+  }
+  @{$to}=map { csvLine(',','"',[@{$_}{@keySeq}])} @$from;
+ } else {
+  @{$to}=map { csvLine(',','"',$_) } @$from;
+ }
+
  if ($WriteTo eq 'FILE') {
   print $fh join("\n",@{$to})."\n";
  } elsif ($WriteTo eq 'LIST_ON_RET') {
