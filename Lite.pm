@@ -24,6 +24,7 @@ sub csvLine {
 
 sub csvPrint {
  my $pars=ref($_[0]) eq 'HASH'?shift:{};
+ my ($delim,$quote)=($pars->{'delim'} || ',',$pars->{'quote'} || '"');
  my ($to,$from)=(shift,shift);
  my ($WriteTo,$fh)=('FILE',*STDOUT);
  if ((ref($to) eq 'ARRAY') and ! $from) {
@@ -51,12 +52,13 @@ sub csvPrint {
    @keySeq=sort keys $from->[0];
   } elsif (ref($from->[0]) eq 'ARRAY' and ref($from->[1]) eq 'HASH') {
    @keySeq=@{$from->[0]};
+   shift $from;
   } else {
    return 0;
   }
-  @{$to}=map { csvLine(',','"',[@{$_}{@keySeq}])} @$from;
+  @{$to}=map { csvLine($delim,$quote,[@{$_}{@keySeq}])} @$from;
  } else {
-  @{$to}=map { csvLine(',','"',$_) } @$from;
+  @{$to}=map { csvLine($delim,$quote,$_) } @$from;
  }
 
  if ($WriteTo eq 'FILE') {
