@@ -2,9 +2,10 @@
 package CSV::Lite;
 use utf8;
 use strict;
+use List::Util qw(max);
 
 use Exporter qw(import);
-our @EXPORT_OK=qw(csvLine csvPrint);
+our @EXPORT_OK=qw(csvLine csvDecLin csvPrint colWidth);
 
 sub csvLine {
  my ($csvSep,$csvQuo)=map {substr($_,0,1)} (shift,shift);
@@ -68,6 +69,22 @@ sub csvPrint {
  } else {
   return 1;
  }
+}
+
+sub colWidth {
+ my @mx=@_;
+ my $lmx=$#mx;
+ my $mcn=max(map {$#{$_}} @mx);
+ my @w=map { my $c=$_; max(map { length($mx[$_][$c]) } 0..$lmx) } 0..$mcn;
+ return wantarray?($mcn,@w):\@w;
+}
+
+sub csvDecLin {
+ my ($d,$tq,$csvl)=@_;
+ my @flds=$csvl=~m/(?:^|${d})(${tq}[^${tq}${d}]*(?:${tq}${tq}[^${tq}${d}]*)*${tq}|[^${tq}${d}]*)(?=${d}|$)/g;
+ print join("\n->",@flds,'');
+ map { do { s/${tq}${tq}/${tq}/; s/(?:^${tq}|${tq}$)//g } if /^${tq}/; $_  } @flds;
+ return \@flds;
 }
 
 1;
