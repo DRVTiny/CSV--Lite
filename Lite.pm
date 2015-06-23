@@ -5,6 +5,8 @@ use strict;
 use List::Util qw(max);
 
 use Exporter qw(import);
+
+our @EXPORT=qw(csvPrint);
 our @EXPORT_OK=qw(csvLine csvDecLin csvPrint colWidth);
 
 sub csvLine {
@@ -28,25 +30,35 @@ sub csvPrint {
  my ($delim,$quote)=($pars->{'delim'} || ',',$pars->{'quote'} || '"');
  my ($to,$from)=(shift,shift);
  my ($WriteTo,$fh)=('FILE',*STDOUT);
+ my $flFromIsARef=(ref($from) eq 'ARRAY') || (ref($from) eq 'HASH');
+ 
  if ((ref($to) eq 'ARRAY') and ! $from) {
   $from=$to;
   $to=[];
- } elsif ( ref($to) eq 'ARRAY' and ! $from and wantarray() ) {
-  $from=$to;
-  $to=[];
-  $WriteTo='LIST_ON_RET';
- } elsif ( (ref($to) eq 'GLOB') and (ref($from) eq 'ARRAY') ) {
-  $fh=$to;
-  $to=[];
- } elsif ($to and ! ref($to) and (ref($from) eq 'ARRAY') ) {
-  open($fh,'>',$to);
-  $to=[];
- } elsif ( !((ref($to) eq 'ARRAY') and (ref($from) eq 'ARRAY')) ) {
-  return 0;
+  $WriteTo='LIST_ON_RET' if wantarray();
+ } else {
+	return 0 unless $flFromIsARef;
+	if (ref($to) eq 'GLOB') {
+		$fh=$to;
+		$to=[];
+	} elsif ($to and ! ref($to)) {
+		$fh=undef;
+		open($fh,'>'.($pars->{'append'}?'>':''),$to);
+		$to=[];
+	} elsif (ref($to) eq 'ARRAY') {		
+		$WriteTo='LIST_ON_RET';
+	}
  }
- 
- if (ref($from->[0]) eq 'HASH' or ref($from->[1]) eq 'HASH') {
-  my @keySeq;
+ my @keySeq;
+ if (ref($from) eq 'HASH') {
+	if (ref($pars->{'fields'}) eq 'ARRAY') {
+		@keySeq=@{$pars->{'fields'}};
+	} else {
+		@keySeq=sort keys $from->{(keys $from)[0]};
+	}
+	@{$to}=map { csvLine($delim,$quote,[$_,@{$from->{$_}}{@keySeq}]) } sort keys $from;
+ } elsif (ref($from->[0]) eq 'HASH' or ref($from->[1]) eq 'HASH') {
+  
   if (ref($pars->{'fields'}) eq 'ARRAY') {
    @keySeq=@{$pars->{'fields'}};
   } elsif ( ref($from->[0]) eq 'HASH' ) {
@@ -62,10 +74,10 @@ sub csvPrint {
   @{$to}=map { csvLine($delim,$quote,$_) } @$from;
  }
 
- if ($WriteTo eq 'FILE') {
-  print $fh join("\n",@{$to})."\n";
+ if ($WriteTo eq 'FILE') {	
+  print $fh join("\n",@{$to}),"\n";
  } elsif ($WriteTo eq 'LIST_ON_RET') {
-  return @{$to};
+  return wantarray()?@{$to}:join("\n",@{$to});
  } else {
   return 1;
  }
