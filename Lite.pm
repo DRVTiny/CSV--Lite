@@ -3,11 +3,14 @@ package CSV::Lite;
 use utf8;
 use strict;
 use List::Util qw(max);
+use Try::Tiny;
 
 use Exporter qw(import);
 
 our @EXPORT=qw(csvPrint);
 our @EXPORT_OK=qw(csvLine csvDecLin csvPrint colWidth);
+
+my $ERRMSG;
 
 sub csvLine {
  my ($csvSep,$csvQuo)=map {substr($_,0,1)} (shift,shift);
@@ -26,60 +29,67 @@ sub csvLine {
 }                  
 
 sub csvPrint {
- my $pars=ref($_[0]) eq 'HASH'?shift:{};
+ my $pars=(ref($_[0]) eq 'HASH' and (@_>1))?shift:{};
  my ($delim,$quote)=($pars->{'delim'} || ',',$pars->{'quote'} || '"');
  my ($to,$from)=(shift,shift);
- my ($WriteTo,$fh)=('FILE',*STDOUT);
+ my ($WriteTo,$fh,$flNeed2CloseFH)=('FILE',*STDOUT,0);
  my $flFromIsARef=(ref($from) eq 'ARRAY') || (ref($from) eq 'HASH');
  
- if ((ref($to) eq 'ARRAY') and ! $from) {
-  $from=$to;
-  $to=[];
-  $WriteTo='LIST_ON_RET' if wantarray();
- } else {
-	return 0 unless $flFromIsARef;
-	if (ref($to) eq 'GLOB') {
-		$fh=$to;
+ try {
+	if ((ref($to) eq 'ARRAY' or ref($to) eq 'HASH') and ! $from) {
+		$from=$to;
 		$to=[];
-	} elsif ($to and ! ref($to)) {
-		$fh=undef;
-		open($fh,'>'.($pars->{'append'}?'>':''),$to);
-		$to=[];
-	} elsif (ref($to) eq 'ARRAY') {		
-		$WriteTo='LIST_ON_RET';
-	}
- }
- my @keySeq;
- if (ref($from) eq 'HASH') {
-	if (ref($pars->{'fields'}) eq 'ARRAY') {
-		@keySeq=@{$pars->{'fields'}};
+		$WriteTo='LIST_ON_RET' if wantarray();
 	} else {
-		@keySeq=sort keys $from->{(keys $from)[0]};
+		die '"from" must be a list or hash reference' unless $flFromIsARef;
+		if (ref($to) eq 'GLOB') {
+			$fh=$to;
+			$to=[];
+		} elsif ($to and ! ref($to)) {
+			$fh=undef;
+			open($fh,'>'.($pars->{'append'}?'>':''),$to);
+			$to=[];
+			$flNeed2CloseFH=1;
+		} elsif (ref($to) eq 'ARRAY') {		
+			$WriteTo='LIST_ON_RET';
+		}
 	}
-	@{$to}=map { csvLine($delim,$quote,[$_,@{$from->{$_}}{@keySeq}]) } sort keys $from;
- } elsif (ref($from->[0]) eq 'HASH' or ref($from->[1]) eq 'HASH') {
-  
-  if (ref($pars->{'fields'}) eq 'ARRAY') {
-   @keySeq=@{$pars->{'fields'}};
-  } elsif ( ref($from->[0]) eq 'HASH' ) {
-   @keySeq=sort keys $from->[0];
-  } elsif (ref($from->[0]) eq 'ARRAY' and ref($from->[1]) eq 'HASH') {
-   @keySeq=@{$from->[0]};
-   shift $from;
-  } else {
-   return 0;
-  }
-  @{$to}=map { csvLine($delim,$quote,[@{$_}{@keySeq}])} @$from;
- } else {
-  @{$to}=map { csvLine($delim,$quote,$_) } @$from;
- }
+	my @keySeq;
+	if (ref($from) eq 'HASH') {
+		if (ref($pars->{'fields'}) eq 'ARRAY') {
+			@keySeq=@{$pars->{'fields'}};
+		} else {
+			@keySeq=sort keys $from->{(keys $from)[0]};
+		}
+		@{$to}=map { csvLine($delim,$quote,[$_,@{$from->{$_}}{@keySeq}]) } sort keys $from;
+	} elsif (ref($from->[0]) eq 'HASH' or ref($from->[1]) eq 'HASH') {
+		if (ref($pars->{'fields'}) eq 'ARRAY') {
+			@keySeq=@{$pars->{'fields'}};
+		} elsif ( ref($from->[0]) eq 'HASH' ) {
+			@keySeq=sort keys $from->[0];
+		} elsif (ref($from->[0]) eq 'ARRAY' and ref($from->[1]) eq 'HASH') {
+			@keySeq=@{$from->[0]};
+			shift $from;
+		} else {
+			die 'Unknown';
+		}
+		@{$to}=map { csvLine($delim,$quote,[@{$_}{@keySeq}])} @$from;
+	} else {
+		@{$to}=map { csvLine($delim,$quote,$_) } @$from;
+	}
 
- if ($WriteTo eq 'FILE') {	
-  print $fh join("\n",@{$to}),"\n";
- } elsif ($WriteTo eq 'LIST_ON_RET') {
-  return wantarray()?@{$to}:join("\n",@{$to});
- } else {
-  return 1;
+	if ($WriteTo eq 'FILE') {	
+		print $fh join("\n",@{$to}),"\n";
+	} elsif ($WriteTo eq 'LIST_ON_RET') {
+		return wantarray()?@{$to}:join("\n",@{$to});
+	} else {
+		return 1;
+	}
+ } catch {	
+	$ERRMSG=$_;
+	return 0;
+ } finally {
+	close($fh) if $flNeed2CloseFH;
  }
 }
 
