@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 package CSV::Lite;
+use 5.16.1;
 use utf8;
 use strict;
 use List::Util qw(max);
@@ -7,10 +8,16 @@ use Try::Tiny;
 
 use Exporter qw(import);
 
-our @EXPORT=qw(csvPrint);
+our @EXPORT=qw(csvPrint csvRead);
 our @EXPORT_OK=qw(csvLine csvDecLin csvPrint colWidth);
 
 my $ERRMSG;
+
+sub csvRead {
+ my $csvLines=[map [map { s{(?:"(?<V1>")|\\(?<V2>.))}{$+{V1} // $+{V2}}ge if s/^"|"$//g; $_ } m/\G("(?:(?!"|\\).|\\.|"")+"|[^";]+);/g], split /\r?\n/, do { open my $fh, '<', $_[0]; local $/=<$fh> }];
+ my ($c, $hdr)=(-1, shift $csvLines);
+ [$#{$csvLines}, $hdr, +{map {$c++; $_=>[map $_->[$c], @{$csvLines}]} @{$hdr}}] 
+}
 
 sub csvLine {
  my ($csvSep,$csvQuo)=map {substr($_,0,1)} (shift,shift);
